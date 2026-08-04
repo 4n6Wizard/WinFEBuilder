@@ -1,4 +1,4 @@
-﻿# WinFE Builder
+# WinFE Builder
 
 A safe, auditable Windows desktop application that builds a bootable **Windows Forensic Environment
 (WinFE)** USB or ISO using the **official WinFE framework**, the **Windows ADK**, the **WinPE
@@ -14,7 +14,7 @@ add-on**, **DISM**, and the batch files supplied with the WinFE framework.
 
 Get `WinFEBuilder.exe` from the [**Releases**](../../releases/latest) page.
 
-It is a **self-contained single-file** executable â€” no .NET runtime, no installer, no dependencies.
+It is a **self-contained single-file** executable — no .NET runtime, no installer, no dependencies.
 Drop it in a folder and run it. On first launch it creates `config\`, `workspace\`, `output\`,
 `reports\`, and `logs\` beside itself.
 
@@ -27,7 +27,7 @@ Get-FileHash .\WinFEBuilder.exe -Algorithm SHA256
 Version 1.0.0 must match:
 
 ```
-1b0ddcebcc966582c7f766fd9fbfcefecf45c41037d3b6037a5f392712c7056b
+3b457f23670f7363fdf3731cceef1e151e83ba88b0567f0c76448f5d995bc208
 ```
 
 The `SHA256SUMS.txt` attached to the release carries the same value.
@@ -37,14 +37,14 @@ The `SHA256SUMS.txt` attached to the release carries the same value.
 ## Requirements
 
 - **Windows 10 or Windows 11 x64**
-- **Administrator privileges** â€” the app requests elevation via its manifest (DISM and DiskPart
+- **Administrator privileges** — the app requests elevation via its manifest (DISM and DiskPart
   require it), so expect a UAC prompt. This is normal.
 - Windows PowerShell 5.1 (ships with Windows) or PowerShell 7
-- The **WinFE framework** (e.g. IntelWinFE), extracted to a folder â€” not included here, see
+- The **WinFE framework** (e.g. IntelWinFE), extracted to a folder — not included here, see
   [Licensing and scope](#licensing-and-scope)
-- **Windows ADK 1809 + WinPE add-on 1809** â€” read the next section carefully
+- **Windows ADK 1809 + WinPE add-on 1809** — read the next section carefully
 
-### âš ï¸ You must install ADK 1809 â€” not the latest
+### ⚠️ You must install ADK 1809 — not the latest
 
 > **Install the Windows ADK for Windows 10, version 1809, and the matching Windows PE add-on for
 > version 1809. Do not install the current ADK.**
@@ -52,16 +52,16 @@ The `SHA256SUMS.txt` attached to the release carries the same value.
 Colin Ramsden's WinFE framework (**IntelWinFE**) was authored against the **ADK 1803** generation,
 and **1809** is the last ADK release that stays compatible with it. From **ADK 1903 onward**
 Microsoft restructured the WinPE payload and the surrounding tooling, and the framework's batch files
-no longer produce a working WinFE image â€” builds either fail outright or, worse, appear to succeed
+no longer produce a working WinFE image — builds either fail outright or, worse, appear to succeed
 while producing media that is not correct.
 
 Both downloads must be the **same version**. A current ADK paired with a 1809 WinPE add-on (or the
 reverse) is not a supported combination.
 
-- **Windows ADK for Windows 10, version 1809** â€” <https://go.microsoft.com/fwlink/?linkid=2026036>
-- **Windows PE add-on for ADK, version 1809** â€” <https://go.microsoft.com/fwlink/?linkid=2022233>
+- **Windows ADK for Windows 10, version 1809** — <https://go.microsoft.com/fwlink/?linkid=2026036>
+- **Windows PE add-on for ADK, version 1809** — <https://go.microsoft.com/fwlink/?linkid=2022233>
 
-Both remain published on Microsoft's ADK archive page (*Other ADK downloads â†’ Previous versions*):
+Both remain published on Microsoft's ADK archive page (*Other ADK downloads → Previous versions*):
 <https://learn.microsoft.com/windows-hardware/get-started/adk-install>
 
 **If a newer ADK is already installed**, uninstall both the ADK and the WinPE add-on before
@@ -78,31 +78,26 @@ ADK 1809 reports as **10.1.17763.x**.
 
 ---
 
-## âš ï¸ USB writes are REAL by default
+## ⚠️ USB writes are always REAL
 
-The shipped `config\settings.json` sets `"SimulationMode": false`, so the USB page performs
-**actual, destructive writes** to the disk you select. A **red banner** says so on screen.
+The USB page performs **actual, destructive writes** to the disk you select. A **red banner** says so
+on screen. There is no simulation setting and no way to turn writing off — the tool is built for
+operators who intend to write real media, so it does not pretend to.
 
-**Selecting the wrong disk destroys everything on it.** Read the disk identity â€” model, serial,
-capacity â€” before you confirm, every single time.
+**Selecting the wrong disk destroys everything on it.** Read the disk identity — model, serial,
+capacity — before you confirm, every single time.
 
-To rehearse instead, set `"SimulationMode": true` in `config\settings.json`. The app then generates
-and displays the exact DiskPart script but **never executes it and never touches a disk** â€” the
-banner turns green and a fake demo disk (#99) appears so you can walk the whole flow safely.
-Recommended for training and for your first run on an unfamiliar machine.
-
-Simulation is **not** the thing standing between you and a wiped disk. These gates are, and they
-apply in **both** modes â€” all enforced in the disk service, not just the UI:
+What protects a disk is the gate chain below, enforced in the disk service rather than the UI:
 
 1. **Protected-disk rules** block the system disk, the boot disk, and any disk hosting a protected
    volume (Windows, page file, hibernation/crash-dump, the app's own workspace/output, or the source
    framework), plus disks with no unique id, zero/invalid size, or read-only state. Each block shows
    the exact reason. Non-removable disks are hidden unless you tick **Advanced**.
-2. **Full disk identity** â€” number, model, serial, unique id, bus, capacity, partitions, drive
-   letters, system/boot flags â€” is shown for the selected disk.
-3. **Typed confirmation** â€” you must type exactly `ERASE DISK <n>` **and** tick *"I understand that
+2. **Full disk identity** — number, model, serial, unique id, bus, capacity, partitions, drive
+   letters, system/boot flags — is shown for the selected disk.
+3. **Typed confirmation** — you must type exactly `ERASE DISK <n>` **and** tick *"I understand that
    all data on this disk will be destroyed."* The Create button stays disabled until both are done.
-4. **Identity re-verification immediately before any write** â€” the disk is re-read and its identity
+4. **Identity re-verification immediately before any write** — the disk is re-read and its identity
    signature compared to what you selected. **Any change aborts** the operation, defending against
    disk-number reassignment or a swapped device.
 5. Only after every gate passes does it run DiskPart, detect the new drive letter, copy the media
@@ -115,13 +110,13 @@ apply in **both** modes â€” all enforced in the disk service, not just the 
 
 | Page | Purpose |
 |---|---|
-| **Dashboard** | Real environment audit â€” admin rights, ADK, WinPE add-on, DISM, Oscdimg, PowerShell, disk space, workspace, framework. Clickable status cards with recommended actions. |
+| **Dashboard** | Real environment audit — admin rights, ADK, WinPE add-on, DISM, Oscdimg, PowerShell, disk space, workspace, framework. Clickable status cards with recommended actions. |
 | **Framework** | Validate an extracted WinFE framework, list discovered scripts/components with SHA-256 hashes, then copy it into a timestamped, hashed workspace **without ever modifying the original**. |
 | **Tools and Drivers** | Add portable forensic tools to the workspace; inject `.inf` drivers into `boot.wim` via DISM. |
-| **Build** | Run the official framework batch files, verify the boot structure, inspect `boot.wim` read-only with DISM (architecture, image count, size, SHA-256 â€” never mounted), build and hash the ISO. |
+| **Build** | Run the official framework batch files, verify the boot structure, inspect `boot.wim` read-only with DISM (architecture, image count, size, SHA-256 — never mounted), build and hash the ISO. |
 | **USB** | Safe disk targeting and USB creation, with the gate chain above. |
 | **Wallpaper** | Set the WinFE desktop wallpaper for the next build. |
-| **Validation** | Guided manual checklist â†’ one-click **HTML** report. |
+| **Validation** | Guided manual checklist → one-click **HTML** report. |
 | **Settings** | Read-only summary and build-profile list. |
 
 Every operation returns a structured result (status, message, technical detail, exit code, timing,
@@ -138,6 +133,24 @@ Validation page.
 WinFE Builder.** A successful build is not a write-protection guarantee. Validate every piece of
 media against a disposable target before casework.
 
+### Third-party tools may need a runtime
+
+WinFE Builder copies the tools you select onto the media; it does not supply their runtimes. WinPE
+ships with neither .NET Framework nor .NET, so:
+
+- Tools needing **.NET Framework 4.x** (e.g. FTK Imager) require the **NET/WMI Windows components**
+  option at build time, which DISM-installs `WinPE-NetFx`, `WinPE-WMI` and `WinPE-Scripting` into
+  `boot.wim`.
+- Tools needing **.NET 8/9** (a `runtimeconfig.json` beside the `.exe` is the tell) are **not**
+  covered by that option — no WinPE component provides modern .NET. Place a portable .NET runtime on
+  the media beside the tool and launch it with `DOTNET_ROOT` pointed at that folder.
+- Tools with a **kernel driver** (e.g. Arsenal Image Mounter) need the driver injected into
+  `boot.wim` via the Tools and Drivers page — copying files onto finished media is not enough.
+
+Adding Windows components rewrites parts of the offline registry, so the build re-applies the
+framework's write-protection patches afterwards and warns if it cannot. Re-verify write protection on
+any image that gained components.
+
 ---
 
 ## How it was verified
@@ -145,17 +158,16 @@ media against a disposable target before casework.
 Built and exercised end-to-end against a real IntelWinFE framework on a machine with ADK 1809
 installed:
 
-- **Real media and ISO builds** â€” the official batch files produce bootable `WINFE_*.iso` artifacts
+- **Real media and ISO builds** — the official batch files produce bootable `WINFE_*.iso` artifacts
   with hashed build manifests.
-- **Real USB writes** â€” DiskPart preparation, drive-letter detection, media copy, and offline
+- **Real USB writes** — DiskPart preparation, drive-letter detection, media copy, and offline
   structural validation completed against a physical removable disk (30 GB target; 363 files /
   ~1.2 GB for the combined x86-x64 layout), with a `usb-record_*.json` written per run.
-- **Boot test** â€” the produced x86+x64 media booted successfully.
-- **250 automated tests** cover path validation, framework validation, ADK detection and the 1809
+- **Boot test** — the produced x86+x64 media booted successfully.
+- **254 automated tests** cover path validation, framework validation, ADK detection and the 1809
   version rule, SHA-256 hashing against NIST vectors, workspace/manifest generation, DISM output
-  parsing, the `ERASE DISK <n>` phrase validator, protected-disk rules, and the simulation path â€”
-  where the suite asserts that **no process is ever started**. No destructive test ever runs
-  automatically.
+  parsing, the `ERASE DISK <n>` phrase validator, protected-disk rules, and release defaults. No
+  destructive test ever runs automatically.
 
 ### Known limitations
 
@@ -187,4 +199,4 @@ You must obtain them yourself and comply with those terms. WinFE Builder only or
 official tools already installed on your machine.
 
 **No warranty.** This software is provided "as is". You are responsible for validating any media you
-produce before relying on it â€” see [LICENSE](LICENSE).
+produce before relying on it — see [LICENSE](LICENSE).
