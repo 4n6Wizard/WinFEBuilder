@@ -27,7 +27,7 @@ Get-FileHash .\WinFEBuilder.exe -Algorithm SHA256
 Version 1.0.0 must match:
 
 ```
-3b457f23670f7363fdf3731cceef1e151e83ba88b0567f0c76448f5d995bc208
+3229cbb3371275968d3b86ec2ac07ad2d9da73a9798b035e776522b59479ce00
 ```
 
 The `SHA256SUMS.txt` attached to the release carries the same value.
@@ -42,18 +42,21 @@ The `SHA256SUMS.txt` attached to the release carries the same value.
 - Windows PowerShell 5.1 (ships with Windows) or PowerShell 7
 - The **WinFE framework** (e.g. IntelWinFE), extracted to a folder — not included here, see
   [Licensing and scope](#licensing-and-scope)
-- **Windows ADK 1809 + WinPE add-on 1809** — read the next section carefully
+- **Windows ADK 1803 or 1809 + the matching WinPE add-on** — read the next section carefully
 
-### ⚠️ You must install ADK 1809 — not the latest
+### ⚠️ You must install ADK 1803 or 1809 — not the latest
 
-> **Install the Windows ADK for Windows 10, version 1809, and the matching Windows PE add-on for
-> version 1809. Do not install the current ADK.**
+> **Install the Windows ADK for Windows 10 version 1803 or 1809, and the matching Windows PE add-on
+> of the same version. Do not install the current ADK.**
 
-Colin Ramsden's WinFE framework (**IntelWinFE**) was authored against the **ADK 1803** generation,
-and **1809** is the last ADK release that stays compatible with it. From **ADK 1903 onward**
-Microsoft restructured the WinPE payload and the surrounding tooling, and the framework's batch files
-no longer produce a working WinFE image — builds either fail outright or, worse, appear to succeed
-while producing media that is not correct.
+Colin Ramsden's [build instructions](https://www.winfe.net/build) specify **ADK 1803**
+(10.1.17134.x) — *"using any other version may produce unexpected results"* — and his
+`MakeWinFEx64-x86.bat` repeats it in the header. **1809** (10.1.17763.x) is the next release and
+remains compatible; it was used to build and boot-test the media this tool was verified against.
+
+From **ADK 1903 onward** Microsoft restructured the WinPE payload and the surrounding tooling, and the
+framework's batch files no longer produce a working WinFE image — builds either fail outright or,
+worse, appear to succeed while producing media that is not correct.
 
 Both downloads must be the **same version**. A current ADK paired with a 1809 WinPE add-on (or the
 reverse) is not a supported combination.
@@ -61,20 +64,20 @@ reverse) is not a supported combination.
 - **Windows ADK for Windows 10, version 1809** — <https://go.microsoft.com/fwlink/?linkid=2026036>
 - **Windows PE add-on for ADK, version 1809** — <https://go.microsoft.com/fwlink/?linkid=2022233>
 
-Both remain published on Microsoft's ADK archive page (*Other ADK downloads → Previous versions*):
-<https://learn.microsoft.com/windows-hardware/get-started/adk-install>
+Both remain published on Microsoft's ADK archive page (*Other ADK downloads → Previous versions*),
+along with 1803: <https://learn.microsoft.com/windows-hardware/get-started/adk-install>
 
 **If a newer ADK is already installed**, uninstall both the ADK and the WinPE add-on before
-installing 1809. Side-by-side installs share the `C:\Program Files (x86)\Windows Kits\10` root, and a
-leftover newer WinPE payload is a common cause of confusing build failures.
+installing 1803/1809. Side-by-side installs share the `C:\Program Files (x86)\Windows Kits\10` root,
+and a leftover newer WinPE payload is a common cause of confusing build failures.
 
 **The app enforces this.** The Dashboard drops the Windows ADK card to **WARNING** when the detected
-version isn't 1809, and the Build page **refuses to start** against an incompatible ADK rather than
-letting the framework produce bad media. Two deliberate exceptions, since version detection is
-best-effort: if the version can't be determined the build proceeds with a warning, and a 1809 kit
-installed *beside* a newer one counts as compatible with a side-by-side warning.
+version is neither 1803 nor 1809, and the Build page **refuses to start** against an incompatible ADK
+rather than letting the framework produce bad media. Two deliberate exceptions, since version
+detection is best-effort: if the version can't be determined the build proceeds with a warning, and a
+compatible kit installed *beside* a newer one counts as compatible with a side-by-side warning.
 
-ADK 1809 reports as **10.1.17763.x**.
+ADK 1803 reports as **10.1.17134.x**, ADK 1809 as **10.1.17763.x**.
 
 ---
 
@@ -138,12 +141,14 @@ media against a disposable target before casework.
 WinFE Builder copies the tools you select onto the media; it does not supply their runtimes. WinPE
 ships with neither .NET Framework nor .NET, so:
 
-- Tools needing **.NET Framework 4.x** (e.g. FTK Imager) require the **NET/WMI Windows components**
-  option at build time, which DISM-installs `WinPE-NetFx`, `WinPE-WMI` and `WinPE-Scripting` into
-  `boot.wim`.
-- Tools needing **.NET 8/9** (a `runtimeconfig.json` beside the `.exe` is the tell) are **not**
-  covered by that option — no WinPE component provides modern .NET. Place a portable .NET runtime on
-  the media beside the tool and launch it with `DOTNET_ROOT` pointed at that folder.
+- Tools needing **.NET Framework 4.x** (e.g. FTK Imager) require the **Prepare Windows components
+  (.NET Framework, WMI)** option at build time, which DISM-installs `WinPE-NetFx`, `WinPE-WMI` and
+  `WinPE-Scripting` into `boot.wim`. Without it they fail with *"mscoree.dll was not found"*.
+- Tools needing **modern .NET** — 5/6/8/9/10, identified by a `runtimeconfig.json` beside the `.exe`
+  — are **not** covered by that option. Microsoft publishes no WinPE component for modern .NET, so the
+  tool must carry its own runtime. Place `hostfxr.dll` and `shared\Microsoft.NETCore.App\<version>\`
+  in the tool's own folder and the `.exe` runs with no launcher; the version must match the one named
+  in its `runtimeconfig.json`, or you get *"You must install or update .NET to run this application"*.
 - Tools with a **kernel driver** (e.g. Arsenal Image Mounter) need the driver injected into
   `boot.wim` via the Tools and Drivers page — copying files onto finished media is not enough.
 
@@ -164,14 +169,14 @@ installed:
   structural validation completed against a physical removable disk (30 GB target; 363 files /
   ~1.2 GB for the combined x86-x64 layout), with a `usb-record_*.json` written per run.
 - **Boot test** — the produced x86+x64 media booted successfully.
-- **254 automated tests** cover path validation, framework validation, ADK detection and the 1809
-  version rule, SHA-256 hashing against NIST vectors, workspace/manifest generation, DISM output
+- **260 automated tests** cover path validation, framework validation, ADK detection and the
+  1803/1809 version rule, SHA-256 hashing against NIST vectors, workspace/manifest generation, DISM output
   parsing, the `ERASE DISK <n>` phrase validator, protected-disk rules, and release defaults. No
   destructive test ever runs automatically.
 
 ### Known limitations
 
-- The **ADK 1809 gate depends on version detection succeeding.** If no version can be read from
+- The **ADK version gate depends on version detection succeeding.** If no version can be read from
   `Windows Kits\10\bin\<version>` or the ADK uninstall entry, the result is *unknown* and the build
   proceeds with a warning rather than being blocked. Confirm the release yourself in that case.
 - Build **stage rows** populate when the build finishes; live progress during a long build appears in
