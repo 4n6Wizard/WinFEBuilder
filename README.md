@@ -27,7 +27,7 @@ Get-FileHash .\WinFEBuilder.exe -Algorithm SHA256
 Version 1.0.0 must match:
 
 ```
-3229cbb3371275968d3b86ec2ac07ad2d9da73a9798b035e776522b59479ce00
+cd4e834cb4a32ba91dbeee4761a57b403348815ac7f17ffa05cb6f416b4c2794
 ```
 
 The `SHA256SUMS.txt` attached to the release carries the same value.
@@ -115,7 +115,7 @@ What protects a disk is the gate chain below, enforced in the disk service rathe
 |---|---|
 | **Dashboard** | Real environment audit — admin rights, ADK, WinPE add-on, DISM, Oscdimg, PowerShell, disk space, workspace, framework. Clickable status cards with recommended actions. |
 | **Framework** | Validate an extracted WinFE framework, list discovered scripts/components with SHA-256 hashes, then copy it into a timestamped, hashed workspace **without ever modifying the original**. |
-| **Tools and Drivers** | Add portable forensic tools to the workspace; inject `.inf` drivers into `boot.wim` via DISM. |
+| **Tools and Drivers** | Add portable forensic tools to the framework; inject `.inf` drivers into `boot.wim` via DISM, with a compatibility check (below); copy folders **into** the image for tools needing modern .NET. |
 | **Build** | Run the official framework batch files, verify the boot structure, inspect `boot.wim` read-only with DISM (architecture, image count, size, SHA-256 — never mounted), build and hash the ISO. |
 | **USB** | Safe disk targeting and USB creation, with the gate chain above. |
 | **Wallpaper** | Set the WinFE desktop wallpaper for the next build. |
@@ -136,25 +136,75 @@ Validation page.
 WinFE Builder.** A successful build is not a write-protection guarantee. Validate every piece of
 media against a disposable target before casework.
 
+### A driver can install perfectly and still never load
+
+Windows only reads the `.inf` sections applicable to the running build. A driver whose device entries
+sit in a section decorated for a newer Windows — e.g. `[Realtek.NTamd64.10.0...22000]`, meaning
+Windows 11 build 22000+ — installs into a WinPE 1809 image without complaint (DISM reports success,
+the package is signed) and then **never binds**. All you see on the booted machine is missing
+hardware, indistinguishable from a wrong or corrupt driver.
+
+WinFE Builder parses each `.inf` and reports this before you build:
+
+```
+Detected drivers      Count   Usable on this image
+Network Adapters        1     yes
+Network Adapters        1     NO — needs Windows build 22000+
+```
+
+Drivers that cannot bind are left unticked, with an explanation. You can override deliberately.
+
+The fix for such a driver is a version of it that supports your Windows build — for Realtek 2.5GbE,
+the "Win10" package (`10.x`) rather than the "Win11" one (`11xx.x`).
+
 ### Third-party tools may need a runtime
 
-WinFE Builder copies the tools you select onto the media; it does not supply their runtimes. WinPE
-ships with neither .NET Framework nor .NET, so:
+WinPE ships with neither .NET Framework nor modern .NET:
 
 - Tools needing **.NET Framework 4.x** (e.g. FTK Imager) require the **Prepare Windows components
   (.NET Framework, WMI)** option at build time, which DISM-installs `WinPE-NetFx`, `WinPE-WMI` and
   `WinPE-Scripting` into `boot.wim`. Without it they fail with *"mscoree.dll was not found"*.
 - Tools needing **modern .NET** — 5/6/8/9/10, identified by a `runtimeconfig.json` beside the `.exe`
-  — are **not** covered by that option. Microsoft publishes no WinPE component for modern .NET, so the
-  tool must carry its own runtime. Place `hostfxr.dll` and `shared\Microsoft.NETCore.App\<version>\`
-  in the tool's own folder and the `.exe` runs with no launcher; the version must match the one named
-  in its `runtimeconfig.json`, or you get *"You must install or update .NET to run this application"*.
-- Tools with a **kernel driver** (e.g. Arsenal Image Mounter) need the driver injected into
-  `boot.wim` via the Tools and Drivers page — copying files onto finished media is not enough.
+  — are **not** covered by that option; Microsoft publishes no WinPE component for it. Use
+  **Tools and Drivers → Add to Image**, which copies the runtime and the tool into `boot.wim`
+  (Arsenal Recon's documented procedure for AIM Remote Agent). It:
+  - reads the tool's `runtimeconfig.json` and selects a **matching installed runtime**, refusing to
+    substitute a different major version — that mismatch is what produces *"You must install or
+    update .NET to run this application"*;
+  - includes the **Desktop Runtime only if the tool declares it**, saving ~75 MB of boot-time RAM for
+    console tools;
+  - shows the size added, because WinPE loads `boot.wim` into RAM;
+  - records before/after SHA-256 in the build record, and compacts the image afterwards.
+
+  This needs the matching .NET runtime installed on the **build machine** — the app copies from
+  `C:\Program Files\dotnet`.
+- Tools with a **kernel driver** (e.g. Arsenal Image Mounter's virtual SCSI adapter) need the driver
+  injected into `boot.wim` — copying files onto finished media is not enough.
+
+> **Any image that gains components, drivers, or content changes after the framework wrote its
+> write-protection keys.** Re-verify write protection on a scratch disk — hash it, boot, attempt a
+> write, hash again — and record the result on the Validation page.
 
 Adding Windows components rewrites parts of the offline registry, so the build re-applies the
-framework's write-protection patches afterwards and warns if it cannot. Re-verify write protection on
-any image that gained components.
+framework's write-protection patches afterwards and warns if it cannot.
+
+### Logs
+
+Every run gets its own folder under `logs\`, holding that session's application log, structured
+`.jsonl`, and every DISM log it produced:
+
+```
+logs\2026-08-07_132746\
+    winfebuilder.log
+    winfebuilder.jsonl
+    dism-winpefeatures_133142.log
+    dism-driver_133400.log
+    dism-imagecontent_133456.log
+```
+
+One build's record stays together, which matters when the logs are the documentation for how a piece of
+media was produced. DISM's progress-bar redraw is filtered out of the application log — the full detail
+remains in the `dism-*.log` beside it.
 
 ---
 
@@ -169,8 +219,8 @@ installed:
   structural validation completed against a physical removable disk (30 GB target; 363 files /
   ~1.2 GB for the combined x86-x64 layout), with a `usb-record_*.json` written per run.
 - **Boot test** — the produced x86+x64 media booted successfully.
-- **260 automated tests** cover path validation, framework validation, ADK detection and the
-  1803/1809 version rule, SHA-256 hashing against NIST vectors, workspace/manifest generation, DISM output
+- **299 automated tests** cover path validation, framework validation, ADK detection and the
+  1803/1809 version rule, driver OS-applicability analysis, modern-.NET runtime matching, SHA-256 hashing against NIST vectors, workspace/manifest generation, DISM output
   parsing, the `ERASE DISK <n>` phrase validator, protected-disk rules, and release defaults. No
   destructive test ever runs automatically.
 
