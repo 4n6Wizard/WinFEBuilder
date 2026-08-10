@@ -19,6 +19,10 @@ obj/
 /audit/*
 !**/.gitkeep
 
+## Scratch notes kept beside the project. Root-level .txt files are never source;
+## SHA256SUMS.txt belongs on the release, not in the tree.
+/*.txt
+
 ## Rider / VS
 .vs/
 .idea/
