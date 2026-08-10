@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test (windows-latest)
+    # WinFEBuilder targets net8.0-windows / WinForms and P/Invokes Windows storage APIs,
+    # so it can only be built and tested on a Windows runner.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Seed local configuration
+        # config/settings.json is git-ignored (it holds machine-local paths), so a
+        # fresh clone needs the template copied in before the app can start.
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force config | Out-Null
+          Copy-Item config-template/settings.json config/settings.json -Force
+
+      - name: Restore
+        run: dotnet restore WinFEBuilder.sln
+
+      - name: Build (Release)
+        run: dotnet build WinFEBuilder.sln -c Release --no-restore
+
+      - name: Test
+        # Disk and USB operations never run for real here: the destructive paths are
+        # gated behind protected-disk rules and a typed confirmation phrase, and the
+        # suite asserts that no process is started on the simulated path.
+        run: dotnet test WinFEBuilder.sln -c Release --no-build --verbosity normal
+
+      - name: Publish self-contained single-file exe
+        run: >
+          dotnet publish src/WinFEBuilder.App/WinFEBuilder.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish
+
+      - name: Hash the published exe
+        shell: pwsh
+        run: |
+          $exe = 'publish/WinFEBuilder.exe'
+          if (-not (Test-Path $exe)) { throw "Publish did not produce $exe" }
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash *WinFEBuilder.exe" | Out-File publish/SHA256SUMS.txt -Encoding utf8
+          Get-Content publish/SHA256SUMS.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinFEBuilder-win-x64
+          path: |
+            publish/WinFEBuilder.exe
+            publish/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

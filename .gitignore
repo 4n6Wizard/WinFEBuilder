@@ -1,0 +1,24 @@
+## Build output
+bin/
+obj/
+[Bb]uild/
+/publish/
+*.user
+
+## Local machine configuration — never commit.
+## It accumulates real paths (LastFrameworkPath) and per-operator choices.
+## config-template/settings.json is the committed source of truth; copy it to
+## config/settings.json on a fresh clone.
+/config/settings.json
+
+## Runtime artifacts (generated at run time)
+/logs/*
+/workspace/*
+/output/*
+/reports/*
+/audit/*
+!**/.gitkeep
+
+## Rider / VS
+.vs/
+.idea/

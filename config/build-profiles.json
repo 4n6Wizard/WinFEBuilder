@@ -1,0 +1,31 @@
+{
+  "profiles": [
+    {
+      "Name": "Agency Standard",
+      "FrameworkPath": null,
+      "WorkspaceRoot": "C:\\WinFEBuilder\\workspace",
+      "OutputRoot": "C:\\WinFEBuilder\\output",
+      "SelectedTools": [],
+      "SelectedDrivers": [],
+      "Wallpaper": null,
+      "OrganizationName": null,
+      "OperatorDefault": null,
+      "UsbLayout": "Both",
+      "BuildOptions": {}
+    },
+    {
+      "Name": "UEFI Only",
+      "UsbLayout": "UEFI",
+      "SelectedTools": [],
+      "SelectedDrivers": [],
+      "BuildOptions": {}
+    },
+    {
+      "Name": "Legacy BIOS",
+      "UsbLayout": "Legacy",
+      "SelectedTools": [],
+      "SelectedDrivers": [],
+      "BuildOptions": {}
+    }
+  ]
+}

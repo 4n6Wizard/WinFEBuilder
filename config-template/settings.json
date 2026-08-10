@@ -1,0 +1,12 @@
+{
+  "WorkspaceRoot": "workspace",
+  "OutputRoot": "output",
+  "LogRoot": "logs",
+  "ReportRoot": "reports",
+  "LastFrameworkPath": null,
+  "OperatorName": null,
+  "OrganizationName": null,
+  "MinimumFreeSpaceGb": 15,
+  "PreferredPowerShell": "powershell",
+  "DiskPartTimeoutSeconds": 900
+}

@@ -32,6 +32,11 @@ cd4e834cb4a32ba91dbeee4761a57b403348815ac7f17ffa05cb6f416b4c2794
 
 The `SHA256SUMS.txt` attached to the release carries the same value.
 
+### Building from source
+
+The full source is in this repository. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for build, run,
+and test instructions, the solution layout, and the design notes behind the safety rules.
+
 ---
 
 ## Requirements
