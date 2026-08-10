@@ -87,7 +87,9 @@ public sealed class MainForm : Form
         };
 
         // Build buttons bottom-up so Dock=Top preserves declared order.
-        foreach (var (key, label) in NavItems.Reverse())
+        // Enumerable.Reverse is called explicitly: on C# 13+ an implicit NavItems.Reverse()
+        // binds to MemoryExtensions.Reverse(Span<T>), which reverses in place and returns void.
+        foreach (var (key, label) in Enumerable.Reverse(NavItems))
         {
             var btn = new Button
             {
