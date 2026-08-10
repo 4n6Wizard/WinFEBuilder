@@ -39,6 +39,58 @@ and test instructions, the solution layout, and the design notes behind the safe
 
 ---
 
+## Reviewing the source — start here
+
+The three folders under `src/` are one program. [`WinFEBuilder.Core`](src/WinFEBuilder.Core) holds
+all of the logic, [`WinFEBuilder.App`](src/WinFEBuilder.App) is the WinForms UI, and
+[`WinFEBuilder.PowerShell`](src/WinFEBuilder.PowerShell/Scripts) holds the scripts that DISM and
+DiskPart are driven through. **Review `WinFEBuilder.Core`** — a defect in the UI is cosmetic, a
+defect in Core destroys evidence.
+
+The part that can destroy data is under 1,000 lines, in the order it executes:
+
+| File | Lines | What it decides |
+| --- | --- | --- |
+| [`Validation/DiskEligibilityRules.cs`](src/WinFEBuilder.Core/Validation/DiskEligibilityRules.cs) | 71 | Whether a disk may be targeted at all. Pure and IO-free. Refuses the system disk, the boot disk, any disk hosting a protected volume, and — deliberately — any disk whose partitions could not be enumerated, on the grounds that an unverifiable disk cannot be proven safe |
+| [`Validation/ConfirmationPhraseValidator.cs`](src/WinFEBuilder.Core/Validation/ConfirmationPhraseValidator.cs) | 23 | That the operator typed `ERASE DISK <n>` exactly |
+| [`Validation/BatchConfirmationValidator.cs`](src/WinFEBuilder.Core/Validation/BatchConfirmationValidator.cs) | 25 | The same, per disk, for multi-disk batches |
+| [`Validation/DiskPartScriptBuilder.cs`](src/WinFEBuilder.Core/Validation/DiskPartScriptBuilder.cs) | 42 | The exact DiskPart commands that get run |
+| [`Services/DiskService.cs`](src/WinFEBuilder.Core/Services/DiskService.cs) | 845 | Runs them, and re-checks disk identity immediately before execution |
+
+The image-modification path, which can corrupt a `boot.wim` but not a host disk:
+
+| File | What it does |
+| --- | --- |
+| [`Services/DriverService.cs`](src/WinFEBuilder.Core/Services/DriverService.cs) | Mounts a **copy** of `boot.wim`, runs `/Add-Driver`, commits, unmounts. The mount is cleaned up on every exit path |
+| [`Services/ImageContentService.cs`](src/WinFEBuilder.Core/Services/ImageContentService.cs) | Mounts, copies folders in, then commits — or discards if the commit fails, rather than leaving a half-written image. Rejects any destination that resolves outside the mount. Hashes `boot.wim` before and after |
+| [`Services/DismService.cs`](src/WinFEBuilder.Core/Services/DismService.cs) | Read-only inspection. Never mounts |
+| [`Scripts/Initialize-WinFEUsb.ps1`](src/WinFEBuilder.PowerShell/Scripts/Initialize-WinFEUsb.ps1) | The destructive script. Prints its DiskPart script and touches nothing unless given `-Execute` **and** the exact confirmation phrase **and** a non-system disk |
+
+### Verifying the claims rather than taking them on trust
+
+[`tests/WinFEBuilder.Tests`](tests/WinFEBuilder.Tests) holds 299 tests; `dotnet test` runs them in
+about a second. The rules above are tested directly, against a fake process runner, so no test ever
+touches a real disk:
+
+- [`DiskServiceSimulationTests.cs`](tests/WinFEBuilder.Tests/DiskServiceSimulationTests.cs) —
+  a wrong confirmation phrase, a missing acknowledgement, and invalid media are each rejected, and
+  the default path generates the DiskPart script without executing it
+- [`DiskServiceRealPipelineTests.cs`](tests/WinFEBuilder.Tests/DiskServiceRealPipelineTests.cs) —
+  a fixed disk is refused without explicit opt-in; a non-zero `bootsect` exit marks the target
+  failed rather than succeeded; verification cannot convert an earlier failure into a success; a
+  DiskPart timeout fails only the current target
+- [`DiskEligibilityRulesTests.cs`](tests/WinFEBuilder.Tests/DiskEligibilityRulesTests.cs),
+  [`ConfirmationPhraseValidatorTests.cs`](tests/WinFEBuilder.Tests/ConfirmationPhraseValidatorTests.cs),
+  [`BatchConfirmationTests.cs`](tests/WinFEBuilder.Tests/BatchConfirmationTests.cs),
+  [`DiskPartAndIdentityTests.cs`](tests/WinFEBuilder.Tests/DiskPartAndIdentityTests.cs) — the gates
+  themselves, in isolation
+
+Every push is built and tested from scratch on a clean Windows runner
+([CI](../../actions)), which also publishes the single-file executable, so the source in this
+repository is demonstrably the source that builds the tool.
+
+---
+
 ## Requirements
 
 - **Windows 10 or Windows 11 x64**

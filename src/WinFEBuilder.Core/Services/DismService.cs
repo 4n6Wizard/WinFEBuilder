@@ -6,8 +6,9 @@ using WinFEBuilder.Core.Validation;
 namespace WinFEBuilder.Core.Services;
 
 /// <summary>
-/// Read-only DISM operations. For Milestone 2 this inspects boot.wim without mounting it.
-/// (Driver injection / mounting arrives in Milestone 4.)
+/// Read-only DISM operations: inspects boot.wim via /Get-WimInfo without mounting it, so nothing
+/// here can alter an image. Mounting and modification live in <see cref="DriverService"/> (driver
+/// injection, WinPE components) and <see cref="ImageContentService"/> (folder copies).
 /// </summary>
 public sealed class DismService : IDismService
 {
